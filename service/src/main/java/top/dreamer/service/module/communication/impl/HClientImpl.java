@@ -8,9 +8,8 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import top.dreamer.core.exception.HRpcBusinessException;
-import top.dreamer.service.module.bootstrap.HrpcBootstrap;
 import top.dreamer.service.module.communication.HClient;
-import top.dreamer.service.module.handler.ClientChannelInitializer;
+import top.dreamer.service.module.pipeline.initializer.ClientChannelInitializer;
 
 /**
  * @author HeYang

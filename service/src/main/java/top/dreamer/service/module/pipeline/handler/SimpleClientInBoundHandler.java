@@ -1,4 +1,4 @@
-package top.dreamer.service.module.handler;
+package top.dreamer.service.module.pipeline.handler;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -16,7 +16,6 @@ import static top.dreamer.service.common.constants.CacheConstants.CLIENT_COMPLET
  * @author HeYang
  * @Github <a href="https://github.com/flatLying">HeYang Github</a>
  * @date 2024-10-11 16:02
- * @description: TODO
  */
 public class SimpleClientInBoundHandler extends ChannelInboundHandlerAdapter {
     @Override
@@ -24,9 +23,9 @@ public class SimpleClientInBoundHandler extends ChannelInboundHandlerAdapter {
         ByteBuf byteBufMsg = (ByteBuf) msg;
         String in = byteBufMsg.toString(StandardCharsets.UTF_8);
         HCache hCache = HrpcBootstrap.getInstance().getHCache();
-        CompletableFuture future = hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + "123456", CompletableFuture.class);
+        CompletableFuture future = hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + 123L, CompletableFuture.class);
         if (future == null) {
-            throw new HRpcBusinessException(String.format("客户端查询【%s】的future结果为空", "123456"));
+            throw new HRpcBusinessException(String.format("客户端查询【%s】的future结果为空", "123L"));
         }
         future.complete(in);
     }

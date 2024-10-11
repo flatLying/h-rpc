@@ -1,7 +1,8 @@
-package top.dreamer.service.module.handler;
+package top.dreamer.service.module.pipeline.initializer;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
+import top.dreamer.service.module.pipeline.handler.SimpleClientInBoundHandler;
 
 /**
  * @author HeYang

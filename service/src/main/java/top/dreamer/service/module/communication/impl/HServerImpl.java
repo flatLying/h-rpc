@@ -7,7 +7,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
 import top.dreamer.core.exception.HRpcBusinessException;
 import top.dreamer.service.module.communication.HServer;
-import top.dreamer.service.module.handler.ServerChannelInitializer;
+import top.dreamer.service.module.pipeline.initializer.ServerChannelInitializer;
 
 /**
  * @author HeYang

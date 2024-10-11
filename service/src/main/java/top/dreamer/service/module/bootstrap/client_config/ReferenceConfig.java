@@ -1,14 +1,23 @@
 package top.dreamer.service.module.bootstrap.client_config;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import top.dreamer.cache.core.HCache;
 import top.dreamer.core.exception.HRpcBusinessException;
+import top.dreamer.service.common.context.HRequestContext;
+import top.dreamer.service.common.utils.HRequestParser;
 import top.dreamer.service.module.bootstrap.HrpcBootstrap;
 import top.dreamer.service.module.bootstrap.common_config.RegistryConfig;
 import top.dreamer.service.module.communication.impl.HClientImpl;
+import top.dreamer.service.module.enums.HCompressType;
+import top.dreamer.service.module.enums.HMessageType;
+import top.dreamer.service.module.enums.HSerializeType;
+import top.dreamer.service.module.message.request.HRequest;
+import top.dreamer.service.module.message.request.HRequestPayLoad;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -18,10 +27,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
 import static top.dreamer.service.common.constants.CacheConstants.CLIENT_COMPLETABLE_FUTURE_CACHE;
 import static top.dreamer.service.common.constants.CacheConstants.HOST_CACHE;
 import static top.dreamer.service.common.constants.HRpcConstants.RESPONSE_WAIT_TIME;
+import static top.dreamer.service.common.constants.MessageConstants.HEADER_LENGTH;
 
 /**
  * @author HeYang
@@ -43,6 +52,21 @@ public class ReferenceConfig<T> {
      */
     @Getter
     private Class<T> serviceInterfaceClass;
+
+    /**
+     * 序列化方式
+     */
+    @Setter
+    @Getter
+    private HSerializeType serializeType = HSerializeType.FAST_JSON;
+
+    /**
+     * 压缩方式
+     */
+    @Setter
+    @Getter
+    private HCompressType compressType = HCompressType.GZIP;
+
 
     /**
      * 拉取服务的registryConfig
@@ -87,16 +111,45 @@ public class ReferenceConfig<T> {
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             InetSocketAddress host = hosts.get(0);
             Channel channel = getChannel(host);
-            // TODO：hRpcId生成暂时没有实现
-            String hRpcId = "123456";
+            HRequestContext context = getRequest(method, args);
+
             HCache hCache = HrpcBootstrap.getInstance().getHCache();
-            hCache.put(CLIENT_COMPLETABLE_FUTURE_CACHE + hRpcId, new CompletableFuture<>());
-            channel.writeAndFlush(Unpooled.copiedBuffer("I'm client, hello server!", StandardCharsets.UTF_8));
+            hCache.put(CLIENT_COMPLETABLE_FUTURE_CACHE + context.getRequest().getMessageId(), new CompletableFuture<>());
+
+            channel.writeAndFlush(context.getRequestBytes());
             try {
-                return hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + hRpcId, CompletableFuture.class).get(RESPONSE_WAIT_TIME, TimeUnit.SECONDS);
+                return hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + context.getRequest().getMessageId(), CompletableFuture.class).get(RESPONSE_WAIT_TIME, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 throw new HRpcBusinessException("未能在限定时间内得到RPC服务器端相应");
             }
+        }
+
+        /**
+         * 构造发送的Request
+         * @param method 方法
+         * @param args 参数
+         * @return 发送的request
+         */
+        private HRequestContext getRequest(Method method, Object[] args) {
+            // TODO：hRpcId生成暂时没有实现
+            long hRpcId = 123L;
+            HRequestPayLoad payLoad = HRequestPayLoad.builder().interfaceName(method.getDeclaringClass().getName())
+                    .methodName(method.getName())
+                    .paramsClass(method.getParameterTypes())
+                    .params(args)
+                    .returnClass(method.getReturnType()).build();
+            byte[] payLoadBytes = serializeType.getSerializer().serialize(payLoad);
+            payLoadBytes = compressType.getCompressor().compress(payLoadBytes);
+            HRequest request = HRequest.builder()
+                    .fullLength(HEADER_LENGTH + payLoadBytes.length)
+                    .compressType(compressType.getCode())
+                    .serializeType(serializeType.getCode())
+                    .messageType(HMessageType.NORMAL.getCode())
+                    .messageId(hRpcId)
+                    .hRequestPayLoad(payLoadBytes).build();
+            ByteBuf msg = HRequestParser.encode(request);
+            return HRequestContext.builder().requestPayLoad(payLoad)
+                    .requestBytes(msg).request(request).build();
         }
 
         /**
