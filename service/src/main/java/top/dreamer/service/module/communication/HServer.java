@@ -1,5 +1,7 @@
 package top.dreamer.service.module.communication;
 
+import java.net.InetSocketAddress;
+
 /**
  * @author HeYang
  * @Github <a href="https://github.com/flatLying">HeYang Github</a>
@@ -11,5 +13,5 @@ public interface HServer {
     /**
      * 开启服务器
      */
-    void startServer();
+    InetSocketAddress startServer();
 }

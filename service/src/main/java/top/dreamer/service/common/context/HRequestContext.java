@@ -1,8 +1,12 @@
 package top.dreamer.service.common.context;
 
 import io.netty.buffer.ByteBuf;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.checkerframework.checker.units.qual.A;
+import top.dreamer.service.module.message.common.HHeader;
 import top.dreamer.service.module.message.request.HRequest;
 import top.dreamer.service.module.message.request.HRequestPayLoad;
 
@@ -14,11 +18,18 @@ import top.dreamer.service.module.message.request.HRequestPayLoad;
  */
 @Data
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class HRequestContext {
     /**
-     * 消息头内容
+     * 消息内容
      */
     private HRequest request;
+
+    /**
+     * 请求头
+     */
+    private HHeader header;
 
     /**
      * 消息载荷内容
@@ -28,5 +39,10 @@ public class HRequestContext {
     /**
      * 整个消息的bytes
      */
-    private ByteBuf requestBytes;
+    private byte[] requestBytes;
+
+    /**
+     * payLoad 的bytes
+     */
+    private byte[] payLoadBytes;
 }

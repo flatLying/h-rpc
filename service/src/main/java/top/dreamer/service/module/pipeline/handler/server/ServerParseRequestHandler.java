@@ -1,12 +1,10 @@
-package top.dreamer.service.module.pipeline.handler;
+package top.dreamer.service.module.pipeline.handler.server;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import top.dreamer.service.common.constants.MessageConstants;
-import top.dreamer.service.common.utils.HRequestParser;
-import top.dreamer.service.module.message.request.HRequest;
+import top.dreamer.service.common.utils.HMessageParser;
 
 /**
  * @author HeYang
@@ -22,6 +20,6 @@ public class ServerParseRequestHandler extends LengthFieldBasedFrameDecoder {
 
     @Override
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
-        return HRequestParser.decode(in);
+        return HMessageParser.decodePayLoadBytesAndHeader(in);
     }
 }

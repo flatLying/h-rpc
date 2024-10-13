@@ -5,6 +5,7 @@ import top.dreamer.demo.api.GreetingService;
 import top.dreamer.service.module.bootstrap.HrpcBootstrap;
 import top.dreamer.service.module.bootstrap.client_config.ReferenceConfig;
 import top.dreamer.service.module.bootstrap.common_config.RegistryConfig;
+import top.dreamer.service.module.detector.heartbeat.HeartBeatDetector;
 import top.dreamer.service.module.enums.HCompressType;
 import top.dreamer.service.module.enums.HSerializeType;
 
@@ -17,7 +18,7 @@ import top.dreamer.service.module.enums.HSerializeType;
  */
 @Slf4j
 public class ClientDemo {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         ReferenceConfig<GreetingService> reference = new ReferenceConfig<>();
         reference.setInterface(GreetingService.class);
         reference.setCompressType(HCompressType.GZIP);
@@ -30,7 +31,23 @@ public class ClientDemo {
                 .connect();
 
         GreetingService greetingService = reference.get();
-        String response = greetingService.sayHello("Hello World");
-        log.info("RPC请求响应为：【{}】", response);
+
+        Thread thread = new Thread(() -> {
+            while (true) {
+                HeartBeatDetector.logHeartBeatIntervals(reference.getServiceInterfaceClass().getName());
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        thread.start();
+
+        for (int i = 0; i < 100; i++) {
+            String response = greetingService.sayHello("Hello World");
+            log.info("RPC请求响应为：【{}】", response);
+            Thread.sleep(5000);
+        }
     }
 }

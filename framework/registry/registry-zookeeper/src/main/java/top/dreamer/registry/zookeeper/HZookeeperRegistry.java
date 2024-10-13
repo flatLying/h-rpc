@@ -3,6 +3,9 @@ package top.dreamer.registry.zookeeper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.cache.CuratorCache;
+import org.apache.curator.framework.recipes.cache.CuratorCacheListener;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.Op;
@@ -87,10 +90,17 @@ public class HZookeeperRegistry extends HRegistryAbstract {
      * @param methodName methodName
      */
     @Override
-    public void createMethodNode(String methodName) {
+    public void createMethodNode(String methodName, Object watcher) {
         String path = SERVER_BASE_PERSISTENT_PATH + "/" + methodName;
+        if (watcher != null && !(watcher instanceof PathChildrenCacheListener)) {
+            throw new IllegalArgumentException("Watcher must be an instance of PathChildrenCacheListener");
+        }
         NodeContext node = NodeContext.builder().path(path).nodeMode(CreateMode.PERSISTENT).build();
         createNode(node);
+        if (watcher != null) {
+            PathChildrenCacheListener listener = (PathChildrenCacheListener) watcher;
+            watchMethodNode(methodName, listener);
+        }
     }
 
     /**
@@ -116,8 +126,37 @@ public class HZookeeperRegistry extends HRegistryAbstract {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    @Override
+    public void createMethodWatcher(String methodName, Object watcher) {
+        if (watcher != null) {
+            PathChildrenCacheListener listener = (PathChildrenCacheListener) watcher;
+            watchMethodNode(methodName, listener);
+        }
+    }
+
 
     /******************************************* private *******************************************/
+
+    /**
+     * 监听指定方法名下的主机节点变化
+     * @param methodName 方法名
+     */
+    public void watchMethodNode(String methodName, PathChildrenCacheListener watcher) {
+        String path = SERVER_BASE_PERSISTENT_PATH + "/" + methodName;
+
+        // 创建 CuratorCache 用于监听节点
+        CuratorCache cache = CuratorCache.build(zk, path);
+
+        // 创建监听器，当子节点有变动时触发
+        CuratorCacheListener listener = CuratorCacheListener.builder()
+                .forPathChildrenCache(path, zk, watcher)
+                .build();
+
+        // 添加监听器
+        cache.listenable().addListener(listener);
+        // 启动缓存监听
+        cache.start();
+    }
 
 
     /**

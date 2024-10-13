@@ -5,23 +5,29 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>top.dreamer</groupId>
-        <artifactId>h-rpc</artifactId>
+        <artifactId>h-rpc-framework</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>h-rpc-framework</artifactId>
-    <packaging>pom</packaging>
-    <modules>
-        <module>core</module>
-        <module>cache</module>
-        <module>registry</module>
-        <module>schedule</module>
-    </modules>
+    <artifactId>h-rpc-schedule</artifactId>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.quartz-scheduler</groupId>
+            <artifactId>quartz</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>top.dreamer</groupId>
+            <artifactId>h-rpc-core</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
 
 </project>

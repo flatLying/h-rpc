@@ -1,20 +1,28 @@
 package top.dreamer.service.module.bootstrap;
 
 import lombok.Getter;
+import lombok.Setter;
 import top.dreamer.cache.HCaffeine;
 import top.dreamer.cache.core.HCache;
 import top.dreamer.core.utils.NetUtils;
+import top.dreamer.service.module.balancer.HBalancer;
+import top.dreamer.service.module.balancer.impl.ConsistentHashBalancer;
+import top.dreamer.service.module.balancer.impl.MinimumResponseTimeBalancer;
+import top.dreamer.service.module.balancer.impl.RoundRobinBalancer;
 import top.dreamer.service.module.bootstrap.client_config.ReferenceConfig;
 import top.dreamer.service.module.bootstrap.common_config.RegistryConfig;
 import top.dreamer.service.module.bootstrap.server_config.ProtocolConfig;
 import top.dreamer.service.module.bootstrap.server_config.ServiceConfig;
 import top.dreamer.service.module.communication.HServer;
 import top.dreamer.service.module.communication.impl.HServerImpl;
+import top.dreamer.service.module.detector.watcher.OnOfflineWatcher;
 
 import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static top.dreamer.service.common.constants.CacheConstants.SERVER_SERVICE_CONFIG_CACHE;
 
 /**
  * @author HeYang
@@ -34,11 +42,19 @@ public class HrpcBootstrap {
      */
     private String applicationName;
 
+
     /**
      * 缓存
      */
     @Getter
     private HCache hCache = new HCaffeine();
+
+    /**
+     * 负载均衡策略
+     */
+    @Setter
+    @Getter
+    private HBalancer balancer;
 
     /**
      * 单例模式，得到INSTANCE
@@ -120,27 +136,40 @@ public class HrpcBootstrap {
 
     /**
      * 1. 把hostIp, hostPort注册到Registry
-     * 2. 启动netty
+     * 2. 把serviceConfig缓存到本地，后续可以调用
+     * 3. 启动netty
      */
     public void start() {
-        registry();
-        new HServerImpl().startServer();
+        InetSocketAddress address = new HServerImpl().startServer();
+        registry(address);
+        saveServiceConfig();
     }
 
 
+
     /************************************************ SERVER PRIVATE的方法 ************************************************/
+
+    /**
+     * 把ServiceConfig缓存到本地，后续可以进行调用
+     */
+    private void saveServiceConfig() {
+        for (ServiceConfig serviceConfig : serviceConfigs) {
+            String serviceName = serviceConfig.getServiceInterfaceClass().getName();
+            this.hCache.put(SERVER_SERVICE_CONFIG_CACHE + serviceName, serviceConfig);
+        }
+    }
+
     /**
      * 把serviceConfigs这个set中的所有服务都注册到注册中心
      */
-    private void registry() {
+    private void registry(InetSocketAddress address) {
         String hostIp = NetUtils.getLocalIPAddress();
-        // TODO: 暂时假设port为8080，后续改成netty端口
-        String port = "8080";
+        int port = address.getPort();
         String hostIpAndPort = hostIp + ":" + port;
 
         for (ServiceConfig serviceConfig : this.serviceConfigs) {
             String methodName = serviceConfig.getServiceInterfaceClass().getName();
-            this.registryConfig.getRegistry().createMethodNode(methodName);
+            this.registryConfig.getRegistry().createMethodNode(methodName, new OnOfflineWatcher());
             this.registryConfig.getRegistry().createHostNode(methodName, hostIpAndPort, null);
         }
     }
@@ -159,14 +188,19 @@ public class HrpcBootstrap {
     }
 
     /**
-     * 1. 把注册中心加载到 reference
-     * 2. 从注册中心拉取该方法的 IP:PORT 列表
-     * 3. 把这个列表传给 reference
+     * 创建注册中心监听器
+     * 1. 把注册中心balancer
+     * 2. 把balancer配置到reference
+     * 3. 开始心跳检测
      */
     public void connect() {
-        this.referenceConfig.setRegistryConfig(this.registryConfig);
-        List<InetSocketAddress> hosts = this.registryConfig.getRegistry().lookup(referenceConfig.getServiceInterfaceClass().getName());
-        this.referenceConfig.setHosts(hosts);
+        this.registryConfig.getRegistry().createMethodWatcher(this.referenceConfig.getServiceInterfaceClass().getName(), new OnOfflineWatcher());
+        if (this.balancer == null) {
+            this.balancer = new MinimumResponseTimeBalancer(this.referenceConfig.getServiceInterfaceClass().getName());
+        }
+        this.balancer.setRegistryCenter(this.registryConfig.getRegistry());
+        this.referenceConfig.setBalancer(this.balancer);
+        this.referenceConfig.startHeartBeatDetect();
     }
 
     /************************************************ CLIENT PRIVATE部分的方法 ************************************************/

@@ -11,6 +11,6 @@ import top.dreamer.demo.api.GreetingService;
 public class GreetingServiceImpl implements GreetingService {
     @Override
     public String sayHello(String name) {
-        return "Hello " + name + " !";
+        return "Server: " + name + " !";
     }
 }

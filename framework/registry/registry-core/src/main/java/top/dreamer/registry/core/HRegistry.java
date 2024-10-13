@@ -1,6 +1,5 @@
 package top.dreamer.registry.core;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 
@@ -15,7 +14,7 @@ public interface HRegistry {
      * 在注册中心创建方法节点
      * @param methodName 方法名
      */
-    void createMethodNode(String methodName);
+    void createMethodNode(String methodName, Object watcher);
 
     /**
      * 在注册中心创建主机节点
@@ -31,4 +30,11 @@ public interface HRegistry {
      * @return 可用的服务列表
      */
     List<InetSocketAddress> lookup(String methodName);
+
+    /**
+     * 在method上面创建watcher
+     * @param methodName 方法名
+     * @param watcher watcher
+     */
+    void createMethodWatcher(String methodName, Object watcher);
 }

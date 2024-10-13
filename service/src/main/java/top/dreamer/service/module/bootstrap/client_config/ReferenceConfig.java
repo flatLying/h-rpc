@@ -1,21 +1,24 @@
 package top.dreamer.service.module.bootstrap.client_config;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import top.dreamer.cache.core.HCache;
 import top.dreamer.core.exception.HRpcBusinessException;
-import top.dreamer.service.common.context.HRequestContext;
-import top.dreamer.service.common.utils.HRequestParser;
+import top.dreamer.service.common.utils.HMessageParser;
+import top.dreamer.service.common.utils.IdGenerator;
+import top.dreamer.service.module.balancer.HBalancer;
 import top.dreamer.service.module.bootstrap.HrpcBootstrap;
-import top.dreamer.service.module.bootstrap.common_config.RegistryConfig;
 import top.dreamer.service.module.communication.impl.HClientImpl;
+import top.dreamer.service.module.detector.event.OfflineEvent;
+import top.dreamer.service.module.detector.event.OnlineEvent;
+import top.dreamer.service.module.detector.event.UpdateEvent;
+import top.dreamer.service.module.detector.heartbeat.HeartBeatDetector;
 import top.dreamer.service.module.enums.HCompressType;
 import top.dreamer.service.module.enums.HMessageType;
 import top.dreamer.service.module.enums.HSerializeType;
+import top.dreamer.service.module.message.common.HHeader;
 import top.dreamer.service.module.message.request.HRequest;
 import top.dreamer.service.module.message.request.HRequestPayLoad;
 
@@ -23,10 +26,11 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import static top.dreamer.service.common.constants.CacheConstants.CLIENT_COMPLETABLE_FUTURE_CACHE;
 import static top.dreamer.service.common.constants.CacheConstants.HOST_CACHE;
 import static top.dreamer.service.common.constants.HRpcConstants.RESPONSE_WAIT_TIME;
@@ -38,14 +42,15 @@ import static top.dreamer.service.common.constants.MessageConstants.HEADER_LENGT
  * @date 2024-10-10 16:15
  * @description: Client调用服务配置
  */
+@Slf4j
 public class ReferenceConfig<T> {
 
     /**
-     * hosts列表
+     * 均衡器
      */
     @Setter
-    private List<InetSocketAddress> hosts;
-
+    @Getter
+    private HBalancer balancer;
 
     /**
      * 调用方法接口的Clazz
@@ -67,15 +72,14 @@ public class ReferenceConfig<T> {
     @Getter
     private HCompressType compressType = HCompressType.GZIP;
 
-
     /**
-     * 拉取服务的registryConfig
+     * ID生成器
      */
-    @Setter
-    private RegistryConfig registryConfig;
+    private IdGenerator idGenerator = new IdGenerator();
 
     /**
-     * 配置需要调用方法接口的Clazz
+     * 1. 配置需要调用方法接口的Clazz
+     * 2. 初始化心跳检测配置
      * @param serviceInterfaceClass 调用方法接口的Clazz
      * @return INSTANCE
      */
@@ -96,6 +100,30 @@ public class ReferenceConfig<T> {
         ));
     }
 
+    /**
+     * 获取一个Channel
+     *  缓存 or 重新连接
+     * @param host 主机信息
+     * @return Channel
+     */
+    public static Channel getChannel(InetSocketAddress host) {
+        Channel channel = HrpcBootstrap.getInstance().getHCache().get(HOST_CACHE + host.toString(), Channel.class);
+        if (channel == null) {
+            channel = new HClientImpl().connect(host.getHostString(), host.getPort());
+            HrpcBootstrap.getInstance().getHCache().put(HOST_CACHE + host, channel);
+        }
+        return channel;
+    }
+
+    /**
+     * 开始进行心跳检测
+     * 1. 查询出所有的Channel
+     * 2. 利用心跳检测器对于所有的Channel进行检测
+     */
+    public void startHeartBeatDetect() {
+        HeartBeatDetector.detectHearBeat(serviceInterfaceClass.getName(), balancer);
+    }
+
     class ClientProxyHandler implements InvocationHandler {
 
         /**
@@ -108,63 +136,79 @@ public class ReferenceConfig<T> {
          * @throws Throwable
          */
         @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            InetSocketAddress host = hosts.get(0);
-            Channel channel = getChannel(host);
-            HRequestContext context = getRequest(method, args);
-
-            HCache hCache = HrpcBootstrap.getInstance().getHCache();
-            hCache.put(CLIENT_COMPLETABLE_FUTURE_CACHE + context.getRequest().getMessageId(), new CompletableFuture<>());
-
-            channel.writeAndFlush(context.getRequestBytes());
+        public Object invoke(Object proxy, Method method, Object[] args){
+            HRequest request = getRequest(method, args);
+            sendRequest(request);
             try {
-                return hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + context.getRequest().getMessageId(), CompletableFuture.class).get(RESPONSE_WAIT_TIME, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
+                HCache hCache = HrpcBootstrap.getInstance().getHCache();
+                return hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + request.getHeader().getMessageId(), CompletableFuture.class).get(RESPONSE_WAIT_TIME, TimeUnit.SECONDS);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                log.error(e.getMessage(), e);
                 throw new HRpcBusinessException("未能在限定时间内得到RPC服务器端相应");
             }
         }
 
         /**
-         * 构造发送的Request
-         * @param method 方法
-         * @param args 参数
-         * @return 发送的request
+         * 发送消息
+         * @param request 消息
          */
-        private HRequestContext getRequest(Method method, Object[] args) {
-            // TODO：hRpcId生成暂时没有实现
-            long hRpcId = 123L;
-            HRequestPayLoad payLoad = HRequestPayLoad.builder().interfaceName(method.getDeclaringClass().getName())
-                    .methodName(method.getName())
-                    .paramsClass(method.getParameterTypes())
-                    .params(args)
-                    .returnClass(method.getReturnType()).build();
+        private void sendRequest(HRequest request) {
+            HCache hCache = HrpcBootstrap.getInstance().getHCache();
+            hCache.put(CLIENT_COMPLETABLE_FUTURE_CACHE + request.getHeader().getMessageId(), new CompletableFuture<>());
+
+            InetSocketAddress host = balancer.next(request.getHeader().getMessageId());
+            Channel channel = getChannel(host);
+            channel.writeAndFlush(HMessageParser.encodeHRequest(request));
+        }
+
+        /**
+         * 1. 获取payLoad
+         * 2. 获取请求头
+         * 3. 获取完整请求
+         *
+         * @param method  方法
+         * @param args    参数
+         */
+        private HRequest getRequest(Method method, Object[] args) {
+
+            HRequestPayLoad payLoad = getRequestPayLoad(method, args);
             byte[] payLoadBytes = serializeType.getSerializer().serialize(payLoad);
             payLoadBytes = compressType.getCompressor().compress(payLoadBytes);
-            HRequest request = HRequest.builder()
+
+            HHeader hHeader = getHHeader(payLoadBytes);
+
+            return HRequest.builder().
+                    header(hHeader).hRequestPayLoad(payLoad).build();
+        }
+
+
+        /**
+         * 获取请求头
+         * @return HHeader
+         */
+        private HHeader getHHeader(byte[] payLoadBytes) {
+            long hRpcId = idGenerator.nextId();
+            return HHeader.builder()
                     .fullLength(HEADER_LENGTH + payLoadBytes.length)
                     .compressType(compressType.getCode())
                     .serializeType(serializeType.getCode())
                     .messageType(HMessageType.NORMAL.getCode())
                     .messageId(hRpcId)
-                    .hRequestPayLoad(payLoadBytes).build();
-            ByteBuf msg = HRequestParser.encode(request);
-            return HRequestContext.builder().requestPayLoad(payLoad)
-                    .requestBytes(msg).request(request).build();
+                    .build();
         }
 
         /**
-         * 获取一个Channel
-         *  缓存 or 重新连接
-         * @param host 主机信息
-         * @return Channel
+         * 获取requestPayLoad
+         * @param method 方法
+         * @param args 参数
+         * @return requestPayLoad
          */
-        private Channel getChannel(InetSocketAddress host) {
-            Channel channel = HrpcBootstrap.getInstance().getHCache().get(HOST_CACHE + host.toString(), Channel.class);
-            if (channel == null) {
-                channel = new HClientImpl().connect(host.getHostString(), host.getPort());
-                HrpcBootstrap.getInstance().getHCache().put(HOST_CACHE + host, channel);
-            }
-            return channel;
+        private HRequestPayLoad getRequestPayLoad(Method method, Object[] args) {
+            return HRequestPayLoad.builder().interfaceName(method.getDeclaringClass().getName())
+                    .methodName(method.getName())
+                    .paramsClass(method.getParameterTypes())
+                    .params(args)
+                    .returnClass(method.getReturnType()).build();
         }
     }
 }

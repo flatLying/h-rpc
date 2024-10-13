@@ -7,5 +7,29 @@ package top.dreamer.service.common.constants;
  * @description: HRpc相关的常量
  */
 public interface HRpcConstants {
-    Integer RESPONSE_WAIT_TIME = 5;
+    /**
+     * 正常调用等待响应时间 秒
+     */
+    Integer RESPONSE_WAIT_TIME = 10;
+
+    /**
+     * 心跳检测等待响应时间 秒
+     */
+    Integer HEARTBEAT_WAIT_TIME = 4;
+
+    /**
+     *心跳检测间隔
+     */
+    Integer HEARTBEAT_DETECT_INTERVAL = 5;
+
+    /**
+     * 心跳断线重试次数
+     */
+    Integer HEARTBEAT_RETRY_NUM = 3;
+
+    /**
+     * 心跳断线重试间隔时间 MS
+     */
+    Integer HEARTBEAT_RETRY_INTERVAL = 500;
+
 }

@@ -16,4 +16,9 @@ public interface CacheConstants {
      * 缓存客户端使用的completableFuture的cache
      */
     String CLIENT_COMPLETABLE_FUTURE_CACHE = "CLIENT_COMPLETABLE_FUTURE_CACHE";
+
+    /**
+     * 缓存服务端的serviceConfig的cache
+     */
+    String SERVER_SERVICE_CONFIG_CACHE = "SERVER_SERVICE_CONFIG_CACHE";
 }

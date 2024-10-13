@@ -20,9 +20,9 @@ public interface MessageConstants {
     byte VERSION = 1;
 
     /**
-     * 消息头长度字段: 22 常数
+     * 消息头长度字段: 30 常数
      */
-    short HEADER_LENGTH = (short) (MAGIC.length + 1 + Short.BYTES + Integer.BYTES + 3 + Long.BYTES);
+    short HEADER_LENGTH = (short) (MAGIC.length + 1 + Short.BYTES + Integer.BYTES + 3 + Long.BYTES + Long.BYTES);
 
     /**
      * 定义的最大帧的长度
