@@ -24,7 +24,8 @@ public class ServerDemo {
                 .application("Hrpc-Server-Demo")
                 .registry(new RegistryConfig("zookeeper://127.0.0.1:2181"))
                 .protocol(new ProtocolConfig())
-                .service(serviceConfig)
+//                .service(serviceConfig)
+                .scan("top.dreamer.demo.api")
                 .start();
     }
 }

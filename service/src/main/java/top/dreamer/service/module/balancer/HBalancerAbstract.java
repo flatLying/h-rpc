@@ -1,6 +1,7 @@
 package top.dreamer.service.module.balancer;
 
 import lombok.Getter;
+import lombok.Setter;
 import top.dreamer.registry.core.HRegistry;
 
 import java.net.InetSocketAddress;
@@ -17,6 +18,7 @@ public abstract class HBalancerAbstract implements HBalancer{
     /**
      * 服务名
      */
+    @Getter @Setter
     protected String serviceName;
 
     /**

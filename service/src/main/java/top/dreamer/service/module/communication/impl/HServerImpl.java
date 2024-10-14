@@ -6,6 +6,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
 import top.dreamer.core.exception.HRpcBusinessException;
+import top.dreamer.service.common.config.HRpcDefaultConfiguration;
+import top.dreamer.service.module.bootstrap.HrpcBootstrap;
 import top.dreamer.service.module.communication.HServer;
 import top.dreamer.service.module.pipeline.initializer.ServerChannelInitializer;
 
@@ -29,7 +31,7 @@ public class HServerImpl implements HServer {
             ChannelFuture channelFuture = serverBootstrap.group(boss, worker)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ServerChannelInitializer())
-                    .bind("0.0.0.0", 8084).sync();
+                    .bind(new HRpcDefaultConfiguration().getHost(), new HRpcDefaultConfiguration().getPort()).sync();
             log.info("服务器端Netty成功启动，启动地址【{}】", channelFuture.channel().localAddress());
             InetSocketAddress address = (InetSocketAddress) channelFuture.channel().localAddress();
             // 阻塞线程避免退出（用新的线程来阻塞）

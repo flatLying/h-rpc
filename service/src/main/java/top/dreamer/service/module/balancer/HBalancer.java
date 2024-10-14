@@ -44,4 +44,9 @@ public interface HBalancer {
      * 获取hosts
      */
     List<InetSocketAddress> getHosts();
+
+    /**
+     * 设置服务名
+     */
+    void setServiceName(String serviceName);
 }

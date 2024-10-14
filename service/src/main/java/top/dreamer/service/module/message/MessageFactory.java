@@ -23,4 +23,14 @@ public class MessageFactory {
         head.setFullLength(head.getHeaderLength() + Integer.BYTES);
         return HResponse.builder().header(head).build();
     }
+
+    /**
+     * 由于限流失败，直接返回
+     * @return Fail Response
+     */
+    public static HResponse FailLimitResponse() {
+        HHeader head = HHeader.builder().build();
+        head.setFullLength(head.getHeaderLength() + Integer.BYTES);
+        return HResponse.builder().header(head).code(500).build();
+    }
 }

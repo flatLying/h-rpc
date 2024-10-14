@@ -6,12 +6,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import top.dreamer.core.exception.HRpcBusinessException;
+import top.dreamer.service.common.constants.HRpcConstants;
 import top.dreamer.service.common.context.HRequestContext;
 import top.dreamer.service.module.bootstrap.HrpcBootstrap;
 import top.dreamer.service.module.bootstrap.server_config.ServiceConfig;
+import top.dreamer.service.module.detector.limiter.TokenBucketRateLimiter;
 import top.dreamer.service.module.enums.HMessageType;
 import top.dreamer.service.module.enums.HResponseCodeType;
 import top.dreamer.service.module.enums.HSerializeType;
+import top.dreamer.service.module.message.MessageFactory;
 import top.dreamer.service.module.message.common.HHeader;
 import top.dreamer.service.module.message.request.HRequest;
 import top.dreamer.service.module.message.request.HRequestPayLoad;
@@ -35,6 +38,15 @@ public class ServerMethodInvokeHandler extends SimpleChannelInboundHandler<HRequ
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HRequest msg) throws Exception {
+
+        // 使用限流器进行流量限制
+        String serviceName = msg.getHRequestPayLoad().getInterfaceName();
+        TokenBucketRateLimiter.createOrUpdateBucket(serviceName, HRpcConstants.TOKEN_BUCKET_INIT_CAPACITY, HRpcConstants.TOKEN_BUCKET_ADD_RATE);
+
+        if (!TokenBucketRateLimiter.tryAcquire(serviceName, 1)) {
+            ctx.channel().writeAndFlush(MessageFactory.FailLimitResponse());
+        }
+
         Object result = invokeMethod(msg.getHRequestPayLoad());
         log.info("服务器端执行调用方法【{}】，结果为【{}】", msg.getHRequestPayLoad().getMethodName(), result.toString());
         HResponse response = createResponse(result, msg);

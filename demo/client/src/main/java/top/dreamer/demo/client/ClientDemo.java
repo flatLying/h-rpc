@@ -47,7 +47,7 @@ public class ClientDemo {
         for (int i = 0; i < 100; i++) {
             String response = greetingService.sayHello("Hello World");
             log.info("RPC请求响应为：【{}】", response);
-            Thread.sleep(5000);
+            Thread.sleep(2000);
         }
     }
 }

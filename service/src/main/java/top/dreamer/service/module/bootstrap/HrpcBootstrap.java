@@ -2,22 +2,22 @@ package top.dreamer.service.module.bootstrap;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import top.dreamer.cache.HCaffeine;
 import top.dreamer.cache.core.HCache;
 import top.dreamer.core.utils.NetUtils;
+import top.dreamer.service.common.utils.ClassScanner;
 import top.dreamer.service.module.balancer.HBalancer;
-import top.dreamer.service.module.balancer.impl.ConsistentHashBalancer;
 import top.dreamer.service.module.balancer.impl.MinimumResponseTimeBalancer;
-import top.dreamer.service.module.balancer.impl.RoundRobinBalancer;
 import top.dreamer.service.module.bootstrap.client_config.ReferenceConfig;
 import top.dreamer.service.module.bootstrap.common_config.RegistryConfig;
 import top.dreamer.service.module.bootstrap.server_config.ProtocolConfig;
 import top.dreamer.service.module.bootstrap.server_config.ServiceConfig;
-import top.dreamer.service.module.communication.HServer;
 import top.dreamer.service.module.communication.impl.HServerImpl;
 import top.dreamer.service.module.detector.watcher.OnOfflineWatcher;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,12 +30,14 @@ import static top.dreamer.service.common.constants.CacheConstants.SERVER_SERVICE
  * @date 2024-10-10 13:13
  * @description: RPC框架的启动引导类
  */
+@Slf4j
 public class HrpcBootstrap {
 
     private HrpcBootstrap() {}
 
 
     private static final HrpcBootstrap INSTANCE = new HrpcBootstrap();
+
 
     /**
      * 应用名称
@@ -119,7 +121,8 @@ public class HrpcBootstrap {
      * @param serviceConfig 运行服务配置
      * @return 当前实例INSTANCE
      */
-    public <T> HrpcBootstrap service(ServiceConfig<T> serviceConfig) {
+    public <T> HrpcBootstrap service(ServiceConfig<?> serviceConfig) {
+        log.info("注册服务全类名【{}】", serviceConfig.getServiceImp().getClass().getName());
         this.serviceConfigs.add(serviceConfig);
         return this;
     }
@@ -129,8 +132,67 @@ public class HrpcBootstrap {
      * @param serviceConfigs 批量的服务配置
      * @return 当前实例INSTANCE
      */
-    public <T> HrpcBootstrap service(List<ServiceConfig<T>> serviceConfigs) {
+    public <T> HrpcBootstrap service(List<ServiceConfig<?>> serviceConfigs) {
         serviceConfigs.forEach(this::service);
+        return this;
+    }
+
+    /**
+     * 扫描包下的所有类并注册（不限定实现接口）
+     * @param packageName 包名
+     * @return HrpcBootstrap 实例
+     */
+    public HrpcBootstrap scan(String packageName) {
+        // 扫描包下的所有类
+        Set<Class<?>> allClasses = ClassScanner.scanPackage(packageName);
+        List<ServiceConfig<?>> serviceConfigs = new ArrayList<>();
+        // 为所有类创建 ServiceConfig 并注册
+        for (Class<?> clazz : allClasses) {
+            try {
+                Object serviceImpl = clazz.getDeclaredConstructor().newInstance();
+                ServiceConfig<?> serviceConfig = new ServiceConfig<>();
+                serviceConfig.setInterface(clazz.getInterfaces()[0])
+                        .setRef(serviceImpl);
+                serviceConfigs.add(serviceConfig);
+            } catch (Exception ignored) {
+
+            }
+        }
+        // 批量注册服务
+        if (!serviceConfigs.isEmpty()) {
+            service(serviceConfigs);
+        }
+        return this;
+    }
+
+    /**
+     * 扫描包下实现了指定接口的所有类并注册
+     * @param packageName 包名
+     * @param interfaceClass 要匹配的接口
+     * @param <T> 接口类型
+     * @return HrpcBootstrap 实例
+     */
+    public <T> HrpcBootstrap scan(String packageName, Class<T> interfaceClass) {
+        // 扫描并过滤实现了指定接口的类
+        Set<Class<? extends T>> allClasses = ClassScanner.scanPackage(packageName, interfaceClass);
+        List<ServiceConfig<T>> serviceConfigs = new ArrayList<>();
+
+        // 创建并收集 ServiceConfig
+        for (Class<? extends T> clazz : allClasses) {
+            try {
+                T serviceImpl = clazz.getDeclaredConstructor().newInstance();
+                ServiceConfig<T> serviceConfig = new ServiceConfig<>();
+                serviceConfig.setInterface(interfaceClass).setRef(serviceImpl);
+                serviceConfigs.add(serviceConfig);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        // 批量注册服务
+        if (!serviceConfigs.isEmpty()) {
+            HrpcBootstrap.getInstance().service((ServiceConfig<?>) serviceConfigs);
+        }
         return this;
     }
 
@@ -144,8 +206,6 @@ public class HrpcBootstrap {
         registry(address);
         saveServiceConfig();
     }
-
-
 
     /************************************************ SERVER PRIVATE的方法 ************************************************/
 

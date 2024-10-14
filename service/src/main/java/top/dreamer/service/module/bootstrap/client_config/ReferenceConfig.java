@@ -6,14 +6,15 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import top.dreamer.cache.core.HCache;
 import top.dreamer.core.exception.HRpcBusinessException;
+import top.dreamer.service.common.config.HRpcDefaultConfiguration;
+import top.dreamer.service.common.constants.HRpcConstants;
 import top.dreamer.service.common.utils.HMessageParser;
 import top.dreamer.service.common.utils.IdGenerator;
 import top.dreamer.service.module.balancer.HBalancer;
 import top.dreamer.service.module.bootstrap.HrpcBootstrap;
 import top.dreamer.service.module.communication.impl.HClientImpl;
-import top.dreamer.service.module.detector.event.OfflineEvent;
-import top.dreamer.service.module.detector.event.OnlineEvent;
-import top.dreamer.service.module.detector.event.UpdateEvent;
+import top.dreamer.service.module.detector.breaker.CircuitBreaker;
+import top.dreamer.service.module.detector.breaker.CircuitBreakerManager;
 import top.dreamer.service.module.detector.heartbeat.HeartBeatDetector;
 import top.dreamer.service.module.enums.HCompressType;
 import top.dreamer.service.module.enums.HMessageType;
@@ -21,7 +22,6 @@ import top.dreamer.service.module.enums.HSerializeType;
 import top.dreamer.service.module.message.common.HHeader;
 import top.dreamer.service.module.message.request.HRequest;
 import top.dreamer.service.module.message.request.HRequestPayLoad;
-
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -53,6 +53,12 @@ public class ReferenceConfig<T> {
     private HBalancer balancer;
 
     /**
+     * 熔断器
+     */
+    private final CircuitBreakerManager circuitBreakerManager = new CircuitBreakerManager();
+
+
+    /**
      * 调用方法接口的Clazz
      */
     @Getter
@@ -63,14 +69,14 @@ public class ReferenceConfig<T> {
      */
     @Setter
     @Getter
-    private HSerializeType serializeType = HSerializeType.FAST_JSON;
+    private HSerializeType serializeType = new HRpcDefaultConfiguration().getSerializer();
 
     /**
      * 压缩方式
      */
     @Setter
     @Getter
-    private HCompressType compressType = HCompressType.GZIP;
+    private HCompressType compressType = new HRpcDefaultConfiguration().getCompressor();
 
     /**
      * ID生成器
@@ -127,6 +133,8 @@ public class ReferenceConfig<T> {
     class ClientProxyHandler implements InvocationHandler {
 
         /**
+         * 先进行熔断器过滤
+         *
          * 1. 从hosts列表中选择一个进行连接（有相关的策略）
          *  a. Cache中没有Channel则重新连接并缓存
          * 2. 创建一个hRpcId绑定的completableFuture，然后发送消息出去
@@ -137,13 +145,21 @@ public class ReferenceConfig<T> {
          */
         @Override
         public Object invoke(Object proxy, Method method, Object[] args){
+            CircuitBreaker circuitBreaker = circuitBreakerManager.getCircuitBreaker(serviceInterfaceClass.getName(), HRpcConstants.FAILURE_THREAD, HRpcConstants.OPEN_STATE_TIMEOUT, HRpcConstants.HALF_OPEN_LIMITER);
+            if (!circuitBreaker.allowRequest()) {
+                throw new HRpcBusinessException(String.format("当前【】服务被熔断", serviceInterfaceClass.getName()));
+            }
+
             HRequest request = getRequest(method, args);
             sendRequest(request);
             try {
                 HCache hCache = HrpcBootstrap.getInstance().getHCache();
-                return hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + request.getHeader().getMessageId(), CompletableFuture.class).get(RESPONSE_WAIT_TIME, TimeUnit.SECONDS);
+                Object result = hCache.get(CLIENT_COMPLETABLE_FUTURE_CACHE + request.getHeader().getMessageId(), CompletableFuture.class).get(RESPONSE_WAIT_TIME, TimeUnit.SECONDS);
+                circuitBreaker.onSuccess();
+                return result;
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 log.error(e.getMessage(), e);
+                circuitBreaker.onFailure();
                 throw new HRpcBusinessException("未能在限定时间内得到RPC服务器端相应");
             }
         }

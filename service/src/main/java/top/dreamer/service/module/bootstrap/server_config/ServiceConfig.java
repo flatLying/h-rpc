@@ -25,8 +25,8 @@ public class ServiceConfig<T> {
      * @param serviceInterfaceClass 接口Clazz
      * @return INSTANCE
      */
-    public ServiceConfig<T> setInterface(Class<T> serviceInterfaceClass) {
-        this.serviceInterfaceClass = serviceInterfaceClass;
+    public ServiceConfig<T> setInterface(Class<?> serviceInterfaceClass) {
+        this.serviceInterfaceClass = (Class<T>) serviceInterfaceClass;
         return this;
     }
 
@@ -35,8 +35,8 @@ public class ServiceConfig<T> {
      * @param serviceImp 实现类
      * @return INSTANCE
      */
-    public ServiceConfig<T> setRef(T serviceImp) {
-        this.serviceImp = serviceImp;
+    public ServiceConfig<T> setRef(Object serviceImp) {
+        this.serviceImp = (T) serviceImp;
         return this;
     }
 }
