@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="h-rpc-server" />
+        <module name="h-rpc-registry-zookeeper" />
+        <module name="h-rpc-cache-core" />
+        <module name="h-rpc-schedule" />
+        <module name="h-rpc-service" />
+        <module name="h-rpc-cache-caffeine" />
+        <module name="h-rpc-cache-redis" />
+        <module name="h-rpc-core" />
+        <module name="h-rpc-registry-core" />
+        <module name="h-rpc-client" />
+        <module name="h-rpc-api" />
+      </profile>
+    </annotationProcessing>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="h-rpc-api" options="-parameters" />
+      <module name="h-rpc-cache-caffeine" options="-parameters" />
+      <module name="h-rpc-cache-core" options="-parameters" />
+      <module name="h-rpc-cache-redis" options="-parameters" />
+      <module name="h-rpc-client" options="-parameters" />
+      <module name="h-rpc-core" options="-parameters" />
+      <module name="h-rpc-demo" options="" />
+      <module name="h-rpc-registry" options="" />
+      <module name="h-rpc-registry-core" options="-parameters" />
+      <module name="h-rpc-registry-zookeeper" options="-parameters" />
+      <module name="h-rpc-schedule" options="-parameters" />
+      <module name="h-rpc-server" options="-parameters" />
+      <module name="h-rpc-service" options="-parameters" />
+    </option>
+  </component>
+</project>

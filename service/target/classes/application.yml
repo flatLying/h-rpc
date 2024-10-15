@@ -1,0 +1,7 @@
+#配置日志输出级别
+logging:
+  level:
+    root: info
+
+zookeeper:
+  address: "117.72.64.37:2181"

@@ -1,0 +1,34 @@
+<!ELEMENT hrpc-config (service, pipeline)>
+        <!-- hrpc-config 包含 service 和 pipeline 元素 -->
+
+        <!ELEMENT service (server, registry?)>
+        <!-- service 包含 server 和可选的 registry -->
+
+        <!ELEMENT server (port, host)>
+        <!-- server 包含 port 和 host 元素 -->
+
+        <!ELEMENT port (#PCDATA)>
+        <!-- port 为数字类型的文本内容 -->
+
+        <!ELEMENT host (#PCDATA)>
+        <!-- host 为文本内容，IP 地址格式 -->
+
+        <!ELEMENT registry (#PCDATA)>
+        <!-- registry 允许的文本为 zookeeper 或 nacos -->
+        <!ATTLIST registry type (zookeeper | nacos) "zookeeper">
+        <!-- 可选 zookeeper 或 nacos，默认值为 zookeeper -->
+
+        <!ELEMENT pipeline (serializer, compressor, balancer)>
+        <!-- pipeline 包含 serializer、compressor 和 balancer -->
+
+        <!ELEMENT serializer (#PCDATA)>
+        <!-- serializer 可选 FastJson 或 Java -->
+        <!ATTLIST serializer type (FastJson | Java) "FastJson">
+
+        <!ELEMENT compressor (#PCDATA)>
+        <!-- compressor 允许 GZIP -->
+        <!ATTLIST compressor type (GZIP) "GZIP">
+
+        <!ELEMENT balancer (#PCDATA)>
+        <!-- balancer 可选 RoundRobinBalancer, MinimumResponseTimeBalancer, ConsistentHashBalancer -->
+        <!ATTLIST balancer type (RoundRobinBalancer | MinimumResponseTimeBalancer | ConsistentHashBalancer) "RoundRobinBalancer">

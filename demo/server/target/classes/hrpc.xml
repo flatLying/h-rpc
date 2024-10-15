@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hrpc-config SYSTEM "hrpc-config.dtd">
+<hrpc-config>
+    <service>
+        <server>
+            <port>8085</port>
+            <host>0.0.0.0</host>
+        </server>
+        <registry>zookeeper</registry>
+    </service>
+    <pipeline>
+        <serializer>FastJson</serializer>
+        <compressor>GZIP</compressor>
+        <balancer>RoundRobinBalancer</balancer>
+    </pipeline>
+</hrpc-config>
